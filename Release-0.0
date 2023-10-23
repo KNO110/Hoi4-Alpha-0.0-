@@ -1,0 +1,501 @@
+using System;
+
+class Program
+{
+    static char[,] playerMap;
+    static char[,] enemyMap;
+    static bool viewPlayerMap = true;
+    static int playerMoney = 1000;
+    static int playerResources = 500;
+    static int enemyMoney = 1000;
+    static int enemyResources = 500;
+    static int playerArmy = 20;
+    static int enemyArmy = 20;
+    static int playerSoldiers = 0;
+    static int playerTerritories = 0;
+    static int enemyTerritories = 0;
+    static int turns = 0;
+    static int phase = 1;
+    static Random random = new Random(); // бог рандома
+
+    static void Main(string[] args)
+    {
+        Console.OutputEncoding = System.Text.Encoding.UTF8;
+
+        try
+        {
+
+            Console.WriteLine("Добро пожаловать в игру Hearts of Iron 4!");
+            Console.WriteLine("Выберите сложность: 1 - Легко, 2 - Средне, 3 - Тяжело");
+            int difficulty = GetValidDifficultyChoice();
+            InitializeMaps(difficulty); // передача выбранной игроком сложности
+            while (true)
+            {
+                try
+                {
+                    // визуал карты
+                    DrawMap(viewPlayerMap ? playerMap : enemyMap);
+
+                    /// менюшка действий
+                    DrawActionMenu();
+
+                    ///// меню ресов
+                    DrawResourceMenu();
+
+                    char input = Console.ReadKey().KeyChar;
+                    if (input == '9')
+                    {
+                        Console.WriteLine("\n\n\n\n");
+                        viewPlayerMap = !viewPlayerMap;
+                        phase--;
+                    }
+                    else
+                    {
+                        HandleInput(input);
+
+                        /// Проверка, чтобы счетчик ходов и фаз не увеличивались при других действиях, а то габэла, куча ресов
+                        if (input != '1' && input != '2' && input != '3' && input != '4')
+                        {
+                            phase--;
+                            if (phase > 3)
+                            {
+                                phase = 1;
+                                turns++;
+                            }
+                        }
+                    }
+
+                    if (phase == 1)
+                    {
+                        BotMove();
+                    }
+
+                    //// обнова
+                    UpdateResourcesAndArmy();
+
+                    ///// Проверяем победил кто-то ли
+                    CheckWinCondition();
+
+                    //// считаем фазы - ходы
+                    phase++;
+                    if (phase > 3)
+                    {
+                        phase = 1;
+                        turns++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Произошла ошибка: " + ex.Message);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Произошла ошибка при инициализации: " + ex.Message);
+        }
+    }
+
+    static int GetValidDifficultyChoice()
+    {
+        while (true)
+        {
+            try
+            {
+                int difficulty = int.Parse(Console.ReadLine());
+                if (difficulty >= 1 && difficulty <= 3)
+                {
+                    return difficulty;
+                }
+                else
+                {
+                    Console.WriteLine("Выберите сложность, введя 1, 2 или 3.");
+                }
+            }
+            catch (FormatException)
+            {
+                Console.WriteLine("Неправильный ввод. Введите 1, 2 или 3.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Произошла ошибка: " + ex.Message);
+            }
+        }
+    }
+
+    static void InitializeMaps(int difficulty)
+    {
+        int mapSize = 5; ///// размер карты по дефолту
+
+        if (difficulty == 1)
+        {
+            mapSize = 5;
+        }
+        else if (difficulty == 2)
+        {
+            mapSize = 7;
+        }
+        else if (difficulty == 3)
+        {
+            mapSize = 9;
+        }
+        else
+        {
+            Console.WriteLine("Выбрана неверная сложность. Используется размер карты по умолчанию (5x5).");
+        }
+
+        playerMap = new char[mapSize, mapSize];
+        enemyMap = new char[mapSize, mapSize];
+
+        // Заполнение карты символами
+        for (int row = 0; row < playerMap.GetLength(0); row++)
+        {
+            for (int col = 0; col < playerMap.GetLength(1); col++)
+            {
+                playerMap[row, col] = '#';
+                enemyMap[row, col] = '%';
+            }
+        }
+    }
+
+    static void DrawMap(char[,] map)
+    {
+        Console.WriteLine("+--------------------------+");
+        for (int row = 0; row < map.GetLength(0); row++)
+        {
+            Console.Write("| ");
+            for (int col = 0; col < map.GetLength(1); col++)
+            {
+                Console.Write(map[row, col] + " ");
+            }
+            Console.WriteLine("|");
+        }
+        Console.WriteLine("+--------------------------+");
+    }
+
+    static void DrawActionMenu()
+    {
+        Console.WriteLine("+--------------------------+");
+        Console.WriteLine("|   Меню действий          |");
+        Console.WriteLine("+--------------------------+");
+        Console.WriteLine($"| Фаза {phase} / 3, Ход {turns} |");
+        Console.WriteLine("| 1. Завоевать территорию  |");
+        Console.WriteLine("| 2. Диверсия              |");
+        Console.WriteLine("| 3. Защититься            |");
+        Console.WriteLine("| 4. Укрепить случайную территорию |");
+        Console.WriteLine("| 5. Нанять солдат         |");
+        Console.WriteLine("| 6. Пропуск фазы          |");
+        Console.WriteLine("| 9. Переключить карту     |");
+        Console.WriteLine("+--------------------------+");
+    }
+
+    static void DrawResourceMenu()
+    {
+        Console.WriteLine("+--------------------------+");
+        Console.WriteLine("|   Меню ресурсов          |");
+        Console.WriteLine("+--------------------------+");
+        Console.WriteLine($"| Деньги: {playerMoney}         |");
+        Console.WriteLine($"| Ресурсы: {playerResources}      |");
+        Console.WriteLine($"| Армия: {playerArmy}          |");
+        Console.WriteLine("+--------------------------+");
+    }
+
+    static void HandleInput(char input)
+    {
+        switch (input)
+        {
+            case '1':
+                // Реализация завоевания территории
+                ConquerTerritory();
+                break;
+            case '2':
+                // Диверсия)
+                PerformSabotage();
+                break;
+            case '3':
+                // Защищаемся
+                Defend();
+                break;
+            case '4':
+                // Окопы
+                StrengthenRandomTerritory();
+                break;
+            case '5':
+                // Найм
+                HireSoldiers();
+                break;
+            case '6':
+                // Пропуск фазы
+                SkipPhase();
+                break;
+            default:
+                // Неправильный ввод
+                Console.WriteLine("Неправильный ввод. Попробуйте ещё раз.");
+                break;
+        }
+    }
+
+    static void SkipPhase()
+    {
+        phase++;
+        if (phase > 3)
+        {
+            phase = 1;
+            turns++;
+        }
+        Console.WriteLine("Вы пропустили фазу.");
+    }
+    static void ConquerTerritory()
+    {
+        if (phase != 1)
+        {
+            Console.WriteLine("Вы можете завоевывать территории только в фазе 1.");
+            return;
+        }
+
+        Console.WriteLine("Выберите территорию для атаки (введите координаты):");
+        int x = int.Parse(Console.ReadLine());
+        int y = int.Parse(Console.ReadLine());
+
+        if (enemyMap[x, y] != '%')
+        {
+            Console.WriteLine("Выбранная территория не является территорией противника.");
+            return;
+        }
+
+        int playerForces;
+        int enemyForces;
+
+        Console.WriteLine("Выберите количество армии для атаки (1-10):");
+        playerForces = int.Parse(Console.ReadLine());
+
+        if (playerForces < 1 || playerForces > 10)
+        {
+            Console.WriteLine("Неправильное количество армии. Допустимо от 1 до 10.");
+            return;
+        }
+
+        // Случайное число армии противника для защиты
+        Random random = new Random();
+        enemyForces = random.Next(1, 11);
+
+        if (playerForces > enemyForces)
+        {
+            Console.WriteLine("Вы победили в битве и завоевали территорию!");
+            enemyMap[x, y] = '#';
+            Console.WriteLine("Территория противника теперь принадлежит вам!");
+
+            playerTerritories++; // + счетчик территорий игрока
+        }
+        else if (playerForces < enemyForces)
+        {
+            Console.WriteLine("Вы потерпели поражение в битве.");
+            Console.WriteLine("Территория осталась во владении противника.");
+        }
+        else
+        {
+            if (random.Next(0, 2) == 0)
+            {
+                Console.WriteLine("Вы победили в битве и завоевали территорию!");
+                enemyMap[x, y] = '#';
+                Console.WriteLine("Территория противника теперь принадлежит вам!");
+
+                playerTerritories++; // + счетчик территорий игрока
+            }
+            else
+            {
+                Console.WriteLine("Вы потерпели поражение в битве.");
+                Console.WriteLine("Территория осталась во владении противника.");
+            }
+        }
+    }
+
+    static void HireSoldiers()
+    {
+        if (playerMoney >= 100)
+        {
+            int numberOfSoldiersToHire = 2;
+            playerMoney -= 100;
+            playerSoldiers += numberOfSoldiersToHire;
+            Console.WriteLine($"Нанято {numberOfSoldiersToHire} солдат. Теперь у вас {playerSoldiers} солдат.");
+        }
+        else
+        {
+            Console.WriteLine("У вас недостаточно денег для найма солдат.");
+        }
+    }
+
+    static void Defend()
+    {
+        if (phase != 3)
+        {
+            Console.WriteLine("Вы можете защищаться только в фазе 3.");
+            return;
+        }
+
+        Console.WriteLine("Выберите территорию для защиты (введите координаты):");
+        int x = int.Parse(Console.ReadLine());
+        int y = int.Parse(Console.ReadLine());
+
+        if (playerMap[x, y] != '!')
+        {
+            Console.WriteLine("Выбранная территория не является вашей территорией для защиты.");
+            return;
+        }
+
+        Console.WriteLine("Выберите количество солдат для защиты (1-10):");
+        int defenseForces = int.Parse(Console.ReadLine());
+
+        if (defenseForces < 1 || defenseForces > 10)
+        {
+            Console.WriteLine("Неправильное количество солдат для защиты. Допустимо от 1 до 10.");
+            return;
+        }
+
+        // Логика защиты территории
+        int enemyForces = enemyArmy; // Вражеская армия
+
+        if (defenseForces > enemyForces)
+        {
+            Console.WriteLine("Вы успешно защитили свою территорию!");
+        }
+        else
+        {
+            playerMap[x, y] = '#';
+        }
+    }
+
+    static void StrengthenRandomTerritory()
+    {
+        if (phase != 2)
+        {
+            Console.WriteLine("Вы можете укреплять территории только в фазе 2.");
+            return;
+        }
+
+        if (playerResources >= 200)
+        {
+            int x = random.Next(0, playerMap.GetLength(0));
+            int y = random.Next(0, playerMap.GetLength(1));
+
+            if (playerMap[x, y] == '#')
+            {
+                playerMap[x, y] = '&';
+                playerResources -= 200;
+                Console.WriteLine("Вы успешно укрепили случайную территорию!");
+            }
+            else
+            {
+                Console.WriteLine("Укрепление невозможно, выбранная территория не является вашей.");
+            }
+        }
+        else
+        {
+            Console.WriteLine("У вас недостаточно ресурсов для укрепления территории.");
+        }
+    }
+
+    static void BotMove()
+    {
+        if (phase == 1)
+        {
+            // Найти территории игрока (знак '#') и попытаться атаковать одну из них
+            for (int x = 0; x < playerMap.GetLength(0); x++)
+            {
+                for (int y = 0; y < playerMap.GetLength(1); y++)
+                {
+                    if (playerMap[x, y] == '#' || playerMap[x, y] == '&') // Бот атакует и укрепленные и обычные территории
+                    {
+                        Console.WriteLine("Противник атакует вашу территорию!");
+                        int enemyForces = enemyArmy;
+                        int playerForces = playerArmy;
+
+                        if (playerMap[x, y] == '&')
+                        {
+                            if (random.Next(0, 2) == 0)
+                            {
+                                Console.WriteLine("Атака на укрепленную территорию не удалась!");
+                                return; // 50% вероятность неудачной атаки на укрепленную территорию
+                            }
+                        }
+
+                        if (playerForces > enemyForces)
+                        {
+                            Console.WriteLine("Вы успешно защитили свою территорию!");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Противник завоевал вашу территорию!");
+                            playerMap[x, y] = '!';
+                            enemyTerritories++; // + счетчик территорий противника
+                            playerTerritories--; // - счетчик территорий игрока
+                        }
+                        return; // Бот делает только одну атаку в каждой фазе
+                    }
+                }
+            }
+        }
+    }
+
+    static void PerformSabotage()
+    {
+        if (playerMoney < 200)
+        {
+            Console.WriteLine("У вас недостаточно денег для проведения диверсии.");
+            return;
+        }
+
+        Console.WriteLine("Проводится диверсия...");
+        Random random = new Random();
+        int chance = random.Next(1, 101);
+
+        if (chance <= 33)
+        {
+            // Диверсия успешна
+            int x = random.Next(0, enemyMap.GetLength(0));
+            int y = random.Next(0, enemyMap.GetLength(1));
+
+            if (enemyMap[x, y] == '%')
+            {
+                enemyMap[x, y] = '#';
+                Console.WriteLine("Диверсия успешно завершена! Вы захватили вражескую территорию.");
+            }
+            else
+            {
+                Console.WriteLine("Диверсия не удалась. Вы не смогли захватить вражескую территорию.");
+            }
+        }
+        else
+        {
+            Console.WriteLine("Диверсия не удалась. Враг заметил ваши попытки.");
+        }
+
+        // Вычитаем 200 денег из бюджета игрока
+        playerMoney -= 200;
+    }
+
+    static void UpdateResourcesAndArmy()
+    {
+        // Обновление ресурсов и армии каждый ход
+        playerResources += 8;
+        enemyResources += 8;
+        playerArmy += 1;
+        enemyArmy += 2;
+        playerMoney += 25;
+    }
+
+    static void CheckWinCondition()
+    {
+        // Над 60% чужой территории для победы
+        if ((playerTerritories * 100.0 / (playerMap.GetLength(0) * playerMap.GetLength(1))) >= 60)
+        {
+            Console.WriteLine("Поздравляем! Вы победили!");
+            Environment.Exit(0); 
+        }
+        else if ((enemyTerritories * 100.0 / (enemyMap.GetLength(0) * enemyMap.GetLength(1))) >= 60)
+        {
+            Console.WriteLine("Противник оккупировал большую часть территории. Вы проиграли!");
+            Environment.Exit(0); 
+        }
+    }
+}
